@@ -2158,9 +2158,9 @@ evin_iomon_keypress_cb(mce_io_mon_t *iomon, gpointer data, gsize bytes_read)
         if ((ev->code == KEY_SCREENLOCK) && (ev->value != 2)) {
             key_state_t key_state = ev->value ?
                 KEY_STATE_PRESSED : KEY_STATE_RELEASED;
-            (void)datapipe_exec_full(&lockkey_state_pipe,
-                                     GINT_TO_POINTER(key_state),
-                                     USE_INDATA, CACHE_INDATA);
+            datapipe_exec_full(&lockkey_state_pipe,
+                               GINT_TO_POINTER(key_state),
+                               USE_INDATA, CACHE_INDATA);
         }
 
         /* For now there's no reason to cache the keypress
@@ -2181,8 +2181,8 @@ evin_iomon_keypress_cb(mce_io_mon_t *iomon, gpointer data, gsize bytes_read)
              ((((submode & MCE_SUBMODE_EVEATER) == 0) &&
                (ev->value == 1)) || (ev->value == 0))) &&
             ((submode & MCE_SUBMODE_PROXIMITY_TKLOCK) == 0)) {
-            (void)datapipe_exec_full(&keypress_event_pipe, &ev,
-                                     USE_INDATA, DONT_CACHE_INDATA);
+            datapipe_exec_full(&keypress_event_pipe, &ev,
+                               USE_INDATA, DONT_CACHE_INDATA);
         }
     }
 
