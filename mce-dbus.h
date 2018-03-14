@@ -46,6 +46,11 @@
 #define COMPOSITOR_SET_AMBIENT_UPDATES_ENABLED "setAmbientUpdatesEnabled"
 #define COMPOSITOR_SET_AMBIENT_MODE_ENABLED "setAmbientEnabled"
 #define MCE_DISPLAY_LPM_SET_SUPPORTED "set_lpm_supported"
+/** Query owner of topmost ui window */
+#define COMPOSITOR_GET_TOPMOST_WINDOW_PID "privateTopmostWindowProcessId"
+
+/** Change notification for owner of topmost ui window */
+#define COMPOSITOR_TOPMOST_WINDOW_PID_CHANGED "privateTopmostWindowProcessIdChanged"
 
 /* ========================================================================= *
  * LIPSTICK DBUS SERVICE
