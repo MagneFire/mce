@@ -1242,6 +1242,8 @@ static void mdy_datapipe_ambient_light_level_cb(gconstpointer data)
 EXIT:
     return;
 }
+/** Cached PID of process owning the topmost window on UI */
+static int topmost_window_pid = -1;
 
 /** Cached lipstick availability; assume unknown */
 static service_state_t lipstick_service_state = SERVICE_STATE_UNDEF;
@@ -4015,7 +4017,7 @@ static void mdy_blanking_pause_evaluate_allowed(void)
     if( submode & MCE_SUBMODE_TKLOCK ) {
         if( !interaction_expected )
             goto DONE;
-        if( mdy_topmost_window_pid == -1 )
+        if( topmost_window_pid == -1 )
             goto DONE;
     }
 
@@ -5405,23 +5407,20 @@ static waitfb_t mdy_waitfb_data =
  * TOPMOST_WINDOW_TRACKING
  * ========================================================================= */
 
-/** Cached PID of process owning the topmost window on UI */
-static int mdy_topmost_window_pid = -1;
-
 static void
 mdy_topmost_window_set_pid(int pid)
 {
-    if( mdy_topmost_window_pid == pid )
+    if( topmost_window_pid == pid )
         goto EXIT;
 
-    mce_log(LL_DEBUG, "mdy_topmost_window_pid: %d -> %d",
-            mdy_topmost_window_pid, pid);
-    mdy_topmost_window_pid = pid;
+    mce_log(LL_DEBUG, "topmost_window_pid: %d -> %d",
+            topmost_window_pid, pid);
+    topmost_window_pid = pid;
 
     mdy_blanking_pause_evaluate_allowed();
 
     datapipe_exec_full(&topmost_window_pid_pipe,
-                       GINT_TO_POINTER(mdy_topmost_window_pid),
+                       GINT_TO_POINTER(topmost_window_pid),
                        USE_INDATA, CACHE_INDATA);
 
 EXIT:
@@ -10333,11 +10332,11 @@ static void mdy_setting_cb(GConfClient *const gcc, const guint id,
     else if( id == mdy_blanking_pause_mode_setting_id ) {
         gint old = mdy_blanking_pause_mode;
         mdy_blanking_pause_mode = gconf_value_get_int(gcv);
-
-        mce_log(LL_NOTICE, "blanking pause mode = %s",
-                blanking_pause_mode_repr(mdy_blanking_pause_mode));
-
-        mdy_blanking_pause_evaluate_allowed();
+        if( mdy_blanking_pause_mode != old ) {
+            mce_log(LL_NOTICE, "blanking pause mode = %s",
+                    blanking_pause_mode_repr(mdy_blanking_pause_mode));
+            mdy_blanking_pause_evaluate_allowed();
+        }
     }
     else if( id == mdy_blanking_from_tklock_disabled_setting_id ) {
         gint old = mdy_blanking_from_tklock_disabled;
