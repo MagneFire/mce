@@ -733,6 +733,9 @@ typedef enum
     /** Something went wrong */
     PLUGIN_ERROR,
 
+    /** Plugin not available */
+    PLUGIN_NA,
+
     PLUGIN_NUMSTATES
 } sfw_plugin_state_t;
 
@@ -2754,6 +2757,7 @@ sfw_plugin_state_name(sfw_plugin_state_t state)
         [PLUGIN_LOADING]  = "LOADING",
         [PLUGIN_LOADED]   = "LOADED",
         [PLUGIN_ERROR]    = "ERROR",
+        [PLUGIN_NA]       = "NA",
     };
 
     return (state < PLUGIN_NUMSTATES) ? lut[state] : 0;
@@ -2923,6 +2927,7 @@ sfw_plugin_trans(sfw_plugin_t *self, sfw_plugin_state_t state)
     case PLUGIN_IDLE:
     case PLUGIN_ERROR:
     case PLUGIN_INITIAL:
+    case PLUGIN_NA:
         sfw_plugin_do_session_reset(self);
 
         if( self->plg_state == PLUGIN_ERROR )
@@ -3031,6 +3036,7 @@ sfw_plugin_load_cb(DBusPendingCall *pc, void *aptr)
     DBusMessage  *rsp  = 0;
     DBusError     err  = DBUS_ERROR_INIT;
     dbus_bool_t   ack  = FALSE;
+    bool          nak  = true;
 
     if( !pc || !self || pc != self->plg_load_pc )
         goto EXIT;
@@ -3058,13 +3064,17 @@ sfw_plugin_load_cb(DBusPendingCall *pc, void *aptr)
         goto EXIT;
     }
 
+    nak = false;
+
 EXIT:
 
     if( self->plg_state == PLUGIN_LOADING) {
-        if( ack )
+        if( nak )
+            sfw_plugin_trans(self, PLUGIN_ERROR);
+        else if( ack )
             sfw_plugin_trans(self, PLUGIN_LOADED);
         else
-            sfw_plugin_trans(self, PLUGIN_ERROR);
+            sfw_plugin_trans(self, PLUGIN_NA);
     }
 
     if( rsp ) dbus_message_unref(rsp);
