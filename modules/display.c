@@ -1726,10 +1726,10 @@ static void mdy_datapipe_touch_detected_cb(gconstpointer data)
     /* Log by default as it might help analyzing lpm problems */
     mce_log(LL_DEBUG, "touch_detected = %d", touch_detected);
 
-    switch( display_state ) {
+    switch( display_state_curr ) {
     case MCE_DISPLAY_LPM_ON:
         /* Screen is in LPM mode, exit LPM mode when touch is detected. */
-        mce_datapipe_req_display_state(MCE_DISPLAY_ON);
+        mce_datapipe_request_display_state(MCE_DISPLAY_ON);
         break;
     default:
         break;
@@ -2244,7 +2244,7 @@ static datapipe_handler_t mdy_datapipe_handlers[] =
         .output_cb = mdy_datapipe_audio_route_cb,
     },
     {
-        .datapipe  = &ambient_light_level_pipe,
+        .datapipe  = &light_sensor_filtered_pipe,
         .output_cb = mdy_datapipe_ambient_light_level_cb,
     },
     {

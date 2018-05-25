@@ -171,7 +171,7 @@ static gboolean mt_state_long_tap_cb(gpointer data)
     submode_t submode = mce_get_submode_int32();
 
     /* If the event eater is active, don't send anything */
-    if( submode & MCE_EVEATER_SUBMODE )
+    if( submode & MCE_SUBMODE_EVEATER )
         goto EXIT;
 
     /* Gesture events count as actual non-synthetized
@@ -179,7 +179,7 @@ static gboolean mt_state_long_tap_cb(gpointer data)
     evin_iomon_generate_activity(ev, false, true);
 
     /* But otherwise are handled in powerkey.c. */
-    execute_datapipe(&keypress_pipe, &ev,
+    datapipe_exec_full(&keypress_event_pipe, &ev,
                      USE_INDATA, DONT_CACHE_INDATA);
 
 EXIT:

@@ -258,6 +258,7 @@ override CFLAGS += -Wmissing-format-attribute
 override CFLAGS += -Wstack-protector
 #CFLAGS += -Werror (OBS build might have different compiler)
 override CFLAGS += -Wno-declaration-after-statement
+override CFLAGS += -Wno-missing-field-initializers
 
 # Linker
 LDLIBS   += -Wl,--as-needed
