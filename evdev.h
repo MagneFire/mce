@@ -22,13 +22,16 @@ extern "C" {
  * mce to always mean doubletap.
  */
 typedef enum {
-       GESTURE_SWIPE_FROM_LEFT   = 0,
-       GESTURE_SWIPE_FROM_RIGHT  = 1,
-       GESTURE_SWIPE_FROM_TOP    = 2,
-       GESTURE_SWIPE_FROM_BOTTOM = 3,
-       GESTURE_DOUBLETAP         = 4, /* To conform with value used in
-                                      * Nokia N9 kernel driver */
-       GESTURE_TILT_TO_WAKE      = 5,
+    /* Values */
+    GESTURE_SWIPE_FROM_LEFT   = 0,
+    GESTURE_SWIPE_FROM_RIGHT  = 1,
+    GESTURE_SWIPE_FROM_TOP    = 2,
+    GESTURE_SWIPE_FROM_BOTTOM = 3,
+    GESTURE_DOUBLETAP         = 4, /* To conform with value used in
+                                    * Nokia N9 kernel driver */
+    GESTURE_TILT_TO_WAKE      = 5,
+    /* Modifiers */
+    GESTURE_SYNTHESIZED       = (1<<8),
 } gesture_t;
 
 const char *evdev_get_event_code_name(int etype, int ecode);

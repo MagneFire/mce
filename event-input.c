@@ -2021,6 +2021,15 @@ evin_iomon_touchscreen_cb(mce_io_mon_t *iomon, gpointer data, gsize bytes_read)
             evin_touchstate_schedule_update();
     }
 
+#ifdef ENABLE_DOUBLETAP_EMULATION
+    if( doubletap && evin_iomon_sw_gestures_allowed() ) {
+        mce_log(LL_DEVEL, "[doubletap] emulated from touch input");
+        ev->type  = EV_MSC;
+        ev->code  = MSC_GESTURE;
+        ev->value = GESTURE_DOUBLETAP | GESTURE_SYNTHESIZED;
+    }
+#endif
+
     /* Power key up event from touch screen -> double tap gesture event */
     if( ev->type == EV_KEY && ev->code == KEY_POWER && ev->value == 0 ) {
         cover_state_t proximity_sensor_actual =
