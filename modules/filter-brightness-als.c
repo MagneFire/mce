@@ -1209,6 +1209,7 @@ fba_datapipe_display_brightness_filter(gpointer data)
     int setting = GPOINTER_TO_INT(data);
 
     int brightness = setting;
+    mce_log(LL_DEBUG, "fba_datapipe_display_brightness_filter %d", brightness);
 
     if( !fba_setting_als_autobrightness || fba_inputflt_output_lux < 0 )
         goto EXIT;
@@ -1243,6 +1244,7 @@ fba_datapipe_led_brightness_filter(gpointer data)
     /* Default to: Brightness setting * 40 % */
     int brightness = GPOINTER_TO_INT(data);
     int curr_scale = 40;
+    mce_log(LL_DEBUG, "fba_datapipe_led_brightness_filter %d", brightness);
 
     /* Check if LED brightness configuration exists */
     if( lut_led.profiles < 1 )
@@ -1279,6 +1281,7 @@ static gpointer
 fba_datapipe_lpm_brightness_filter(gpointer data)
 {
     int value = GPOINTER_TO_INT(data);
+    mce_log(LL_DEBUG, "fba_datapipe_lpm_brightness_filter: %d", value);
 
     if( !fba_setting_als_autobrightness || fba_inputflt_output_lux < 0 )
         goto EXIT;
@@ -1305,6 +1308,7 @@ fba_datapipe_key_backlight_filter(gpointer data)
 {
     int value = GPOINTER_TO_INT(data);
     int scale = 100;
+    mce_log(LL_DEBUG, "fba_datapipe_key_backlight_filter %d", value);
 
     if( !fba_setting_als_autobrightness || fba_inputflt_output_lux < 0 )
         goto EXIT;

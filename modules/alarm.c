@@ -23,7 +23,9 @@
 #include "../mce-log.h"
 #include "../mce-dbus.h"
 #include "../mce-wakelock.h"
+#include "../mce-dbus.h"
 
+# define COMPOSITOR_STM_DBUS_CALL_TIMEOUT DBUS_TIMEOUT_INFINITE
 #include <gmodule.h>
 
 /* Alarm UI related D-Bus constants */
@@ -43,6 +45,7 @@ typedef enum {
 #define TIMED_DBUS_OBJECT               "/com/nokia/time"
 #define TIMED_DBUS_INTERFACE            "com.nokia.time"
 #define TIMED_QUEUE_STATUS_SIG          "next_bootup_event"
+#define TIMED_WAKEUP_EVENT              "wakeup_event"
 
 /** Module name */
 #define MODULE_NAME                     "alarm"
@@ -91,6 +94,7 @@ static void     queue_monitor_setup         (const char *sender, bool monitor);
 
 static gboolean alarm_dialog_status_dbus_cb (DBusMessage *const msg);
 static gboolean alarm_queue_status_dbus_cb  (DBusMessage *const sig);
+static gboolean alarm_wakeup_dbus_cb  (DBusMessage *const sig);
 
 static void     mce_alarm_init_dbus         (void);
 static void     mce_alarm_quit_dbus         (void);
@@ -337,10 +341,30 @@ static gboolean alarm_queue_status_dbus_cb(DBusMessage *const sig)
          * and alarm ui will be started up.
          */
         queue_monitor_setup(sender, bootup == 1 || normal == 1);
-
 EXIT:
         dbus_error_free(&error);
         return TRUE;
+}
+
+
+static gboolean alarm_wakeup_dbus_cb(DBusMessage *const sig)
+{
+    // System booted from sleep, providing ambient update if display is in ambient mode!
+    // Maybe schedule next wakup event?
+    mce_log(LL_DEVEL, "WAKE EVENT!, update screen!");
+    mce_log(LL_NOTICE, "call %s()",
+            COMPOSITOR_UPDATE_AMBIENT_MODE_DISPLAY);
+
+    // XXX we want to use longer than default timeout here!
+    bool ack = dbus_send_ex2(COMPOSITOR_SERVICE,
+                             COMPOSITOR_PATH,
+                             COMPOSITOR_IFACE,
+                             COMPOSITOR_UPDATE_AMBIENT_MODE_DISPLAY,
+                             NULL,
+                             COMPOSITOR_STM_DBUS_CALL_TIMEOUT,
+                             NULL, 0,
+                             NULL,
+                             DBUS_TYPE_INVALID);
 }
 
 /** Array of dbus message handlers */
@@ -358,6 +382,12 @@ static mce_dbus_handler_t alarm_dbus_handlers[] =
         .name      = TIMED_QUEUE_STATUS_SIG,
         .type      = DBUS_MESSAGE_TYPE_SIGNAL,
         .callback  = alarm_queue_status_dbus_cb,
+    },
+    {
+        .interface = TIMED_DBUS_INTERFACE,
+        .name      = TIMED_WAKEUP_EVENT,
+        .type      = DBUS_MESSAGE_TYPE_SIGNAL,
+        .callback  = alarm_wakeup_dbus_cb,
     },
     /* sentinel */
     {

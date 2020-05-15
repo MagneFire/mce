@@ -619,6 +619,9 @@ static void                 compositor_stm_send_pid_query    (compositor_stm_t *
 static void                 compositor_stm_forget_pid_query  (compositor_stm_t *self);
 static void                 compositor_stm_pid_query_cb      (DBusPendingCall *pc, void *aptr);
 
+static void                 compositor_stm_send_lpm_request (compositor_stm_t *self);
+static void                 compositor_stm_lpm_request_cb   (DBusPendingCall *pc, void *aptr);
+
 static void                 compositor_stm_send_ctrl_request (compositor_stm_t *self);
 static void                 compositor_stm_forget_ctrl_request(compositor_stm_t *self);
 static void                 compositor_stm_ctrl_request_cb   (DBusPendingCall *pc, void *aptr);
@@ -2428,6 +2431,8 @@ static void mdy_brightness_set_level(int number)
     int minval = 0;
     int maxval = mdy_brightness_level_maximum;
 
+    // WARNING: GET RID OF THIS LINE!!!!
+    //if (number < 60) number = 60;
     /* If we manage to get out of hw bounds values from depths
      * of pipelines and state machines we could end up with
      * black screen without easy way out -> clip to valid range */
@@ -2536,6 +2541,7 @@ static void mdy_brightness_force_level(int number)
     mdy_brightness_fade_start_time =
         mdy_brightness_fade_end_time = mce_lib_get_boot_tick();
 
+    mce_log(LL_DEBUG, "mdy_brightness_force_level %d", number);
     mdy_brightness_set_level(number);
 }
 
@@ -2631,6 +2637,7 @@ static gboolean mdy_brightness_fade_timer_cb(gpointer data)
         keep_going = TRUE;
     }
 
+    mce_log(LL_DEBUG, "mdy_brightness_fade_timer_cb %d", lev);
     mdy_brightness_set_level(lev);
 
     /* Cleanup if finished */
@@ -2888,6 +2895,7 @@ EXIT:
  */
 static void mdy_brightness_set_fade_target_default(gint new_brightness)
 {
+    mce_log(LL_DEBUG, "mdy_brightness_set_fade_target_default %d", new_brightness);
     mdy_brightness_set_fade_target_ex(FADER_DEFAULT,
                                       new_brightness,
                                       mdy_brightness_fade_duration_def_ms);
@@ -2897,6 +2905,7 @@ static void mdy_brightness_set_fade_target_default(gint new_brightness)
  */
 static void mdy_brightness_set_fade_target_unblank(gint new_brightness)
 {
+    mce_log(LL_DEBUG, "mdy_brightness_set_fade_target_unblank %d", new_brightness);
     mdy_brightness_set_fade_target_ex(FADER_UNBLANK,
                                       new_brightness,
                                       mdy_brightness_fade_duration_unblank_ms);
@@ -2906,6 +2915,7 @@ static void mdy_brightness_set_fade_target_unblank(gint new_brightness)
  */
 static void mdy_brightness_set_fade_target_blank(void)
 {
+    mce_log(LL_DEBUG, "mdy_brightness_set_fade_target_blank");
     if( call_state == CALL_STATE_ACTIVE ) {
         /* Unlike the other brightness fadings, the fade-to-black blocks
          * the display state machine and thus delays the whole display
@@ -2914,6 +2924,8 @@ static void mdy_brightness_set_fade_target_blank(void)
          * Thus it must not be used during active call to avoid stray
          * touch input from ear/chin when proximity blanking is in use.
          */
+        mce_log(LL_DEBUG, "mdy_brightness_set_fade_target_blank");
+        //AHDKHSKDHAKWHDAKWJHKJWH
         mdy_brightness_force_level(0);
         goto EXIT;
     }
@@ -2929,6 +2941,7 @@ EXIT:
  */
 static void mdy_brightness_set_fade_target_dimming(gint new_brightness)
 {
+    mce_log(LL_DEBUG, "mdy_brightness_set_fade_target_dimming %d", new_brightness);
     mdy_brightness_set_fade_target_ex(FADER_DIMMING,
                                       new_brightness,
                                       mdy_brightness_fade_duration_dim_ms);
@@ -2941,6 +2954,7 @@ bool mdy_brightness_als_fade_allowed = false;
  */
 static void mdy_brightness_set_fade_target_als(gint new_brightness)
 {
+    mce_log(LL_DEBUG, "mdy_brightness_set_fade_target_als %d", new_brightness);
     /* Update wake up brightness level in case we got als data
      * before unblank fading has been started */
     mce_log(LL_DEBUG, "resume level: %d -> %d",
@@ -3799,6 +3813,7 @@ static void mdy_blanking_schedule_off(void)
         mce_log(LL_DEBUG, "BLANK timer rescheduled @ %d secs", timeout);
     }
     else {
+        //wakelock_unlock("mce_lpm_off");
         wakelock_lock("mce_lpm_off", -1);
         mce_log(LL_DEBUG, "BLANK timer scheduled @ %d secs", timeout);
     }
@@ -5438,6 +5453,12 @@ struct compositor_stm_t
      */
     DBusPendingCall       *csi_ctrl_request_pc;
 
+    /** Currently pending compositor D-Bus method call
+     *
+     * Managed by compositor_stm_send_ctrl_request() & co
+     */
+    DBusPendingCall       *csi_lpm_request_pc;
+
     /** Timer id for killing unresponsive compositor process
      *
      * Managed by compositor_stm_schedule_killer() & co
@@ -5483,6 +5504,7 @@ compositor_stm_ctor(compositor_stm_t *self)
 
     /* No pending compositor dbus method call */
     self->csi_ctrl_request_pc = 0;
+    self->csi_lpm_request_pc = 0;
 
     /* Retry timer is inactive */
     self->csi_retry_timer_id = 0;
@@ -5673,6 +5695,70 @@ compositor_stm_pid_query_cb(DBusPendingCall *pc, void *aptr)
     compositor_stm_set_service_pid(self, pid);
 
 EXIT:
+
+    if( rsp ) dbus_message_unref(rsp);
+
+    dbus_error_free(&err);
+
+    return;
+}
+
+static void
+compositor_stm_send_lpm_request(compositor_stm_t *self)
+{
+    mce_log(LL_NOTICE, "compositor_stm_send_lpm_request");
+    dbus_bool_t dta = mdy_use_low_power_mode == TRUE;
+
+    bool ack = dbus_send_ex2(COMPOSITOR_SERVICE,
+                             COMPOSITOR_PATH,
+                             COMPOSITOR_IFACE,
+                             COMPOSITOR_SET_AMBIENT_MODE_ENABLED,
+                             compositor_stm_lpm_request_cb,
+                             COMPOSITOR_STM_DBUS_CALL_TIMEOUT,
+                             self, 0,
+                             &self->csi_lpm_request_pc,
+                             DBUS_TYPE_BOOLEAN, &dta,
+                             DBUS_TYPE_INVALID);
+
+    /*if( !ack )
+        compositor_stm_set_state(self, COMPOSITOR_STATE_FAILED);*/
+}
+
+/** Handle reply to pending compositor state request
+ */
+static void
+compositor_stm_lpm_request_cb(DBusPendingCall *pc, void *aptr)
+{
+    compositor_stm_t       *self = aptr;
+    DBusMessage *rsp  = 0;
+    DBusError    err  = DBUS_ERROR_INIT;
+    bool         ack  = false;
+    mce_log(LL_NOTICE, "compositor_stm_lpm_request_cb");
+
+    if( self->csi_lpm_request_pc != pc )
+        goto EXIT;
+
+    dbus_pending_call_unref(self->csi_lpm_request_pc),
+        self->csi_lpm_request_pc = 0;
+
+    if( !(rsp = dbus_pending_call_steal_reply(pc)) )
+        goto EXIT;
+
+    if( dbus_set_error_from_message(&err, rsp) ) {
+        mce_log(LL_WARN, "%s: %s", err.name, err.message);
+        goto EXIT;
+    }
+
+    ack = true;
+
+EXIT:
+    if( ack ) {
+        mce_log(LL_NOTICE, "LPM ACK!!!");
+        mce_fbdev_set_suspend_mode(mdy_use_low_power_mode);
+    } else {
+        mce_log(LL_NOTICE, "LPM NONONONONO ACK!!!");
+        //mce_fbdev_set_suspend_mode(false);
+    }
 
     if( rsp ) dbus_message_unref(rsp);
 
@@ -6800,7 +6886,8 @@ static void mdy_display_state_changed(void)
     case MCE_DISPLAY_OFF:
     case MCE_DISPLAY_LPM_OFF:
         /* Blanking or already blanked -> set zero brightness */
-        mdy_brightness_force_level(0);
+        //AHDKWHKWAHKJHDKD
+        //mdy_brightness_force_level(0);
         break;
 
     case MCE_DISPLAY_LPM_ON:
@@ -6916,14 +7003,18 @@ static void mdy_display_state_leave(display_state_t prev_state,
 
     case MCE_DISPLAY_LPM_ON:
         mdy_brightness_level_display_resume = mdy_brightness_level_display_lpm;
+        mce_log(LL_DEBUG, "mdy_brightness_level_display_lpm %d", mdy_brightness_level_display_lpm);
         if( have_power )
             mdy_brightness_set_fade_target_default(mdy_brightness_level_display_resume);
         break;
 
     case MCE_DISPLAY_OFF:
+        mce_log(LL_DEBUG, "mdy_display_state_leave MCE_DISPLAY_OFF");
     case MCE_DISPLAY_LPM_OFF:
+        mce_log(LL_DEBUG, "mdy_display_state_leave MCE_DISPLAY_LPM_OFF");
         mdy_brightness_level_display_resume = 0;
-        mdy_brightness_set_fade_target_blank();
+        //AHDKWHKWAHKJHDKD
+        ///mdy_brightness_set_fade_target_blank();
         break;
 
     case MCE_DISPLAY_UNDEF:
@@ -8740,6 +8831,71 @@ static gboolean mdy_dbus_handle_display_off_req(DBusMessage *const msg)
     return TRUE;
 }
 
+/**
+ * Send a CABC status reply
+ *
+ * @param method_call A DBusMessage to reply to
+ * @return TRUE on success, FALSE on failure
+ */
+static gboolean mdy_dbus_send_lpm_enabled(DBusMessage *const method_call)
+{
+    DBusMessage *msg = NULL;
+    gboolean status = FALSE;
+    gint i;
+
+    mce_log(LL_DEBUG,"Sending CABC mode: %s", mdy_use_low_power_mode ? "enabled" : "disabled");
+
+    msg = dbus_new_method_reply(method_call);
+
+    /* Append the CABC mode */
+    if (dbus_message_append_args(msg,
+                                 DBUS_TYPE_BOOLEAN, &mdy_use_low_power_mode,
+                                 DBUS_TYPE_INVALID) == FALSE) {
+        mce_log(LL_ERR, "Failed to append reply argument to D-Bus message "
+                "for %s.%s",
+                MCE_REQUEST_IF, MCE_CABC_MODE_GET);
+        dbus_message_unref(msg);
+        goto EXIT;
+    }
+
+    /* Send the message */
+    status = dbus_send_message(msg);
+
+    /* Compositor is available! Update lpm request in case it wasn't received by compositor.
+     * Horribly code warning: This is a get function!
+     *
+     * This function is called when a change of lpm enabled is detected. This happens on mce startup.
+     * However, at this time it is unlikely that the compositor is availbe.
+     * So the request won't be acknowledged. Which will leave the fbdev state in powerdown instead of vsync_suspend.
+     * Even if lpm is enabled...
+     *
+     * Temporary solution: Do another lpm request based on the current setting, if enabled
+     * compositor enabled powermode doze and dbus message will be acknowledged in mce, which will enable fbdev vsync_suspend.
+     */
+    compositor_stm_send_lpm_request(mdy_compositor_ipc);
+
+EXIT:
+    return status;
+}
+
+static gboolean mdy_dbus_handle_lpm_enabled_req(DBusMessage *const msg)
+{
+
+    gboolean status = FALSE;
+
+    mce_log(LL_DEVEL, "Received lpm enabled get request from %s",
+            mce_dbus_get_message_sender_ident(msg));
+
+    /* Try to send a reply that contains the current tklock mode */
+    if( !mdy_dbus_send_lpm_enabled(msg) )
+        goto EXIT;
+
+    status = TRUE;
+
+EXIT:
+    return status;
+}
+
 /** D-Bus callback for the display lpm method call
  *
  * @param msg The D-Bus message
@@ -9326,6 +9482,14 @@ static mce_dbus_handler_t mdy_dbus_handlers[] =
     },
     {
         .interface = MCE_REQUEST_IF,
+        .name      = MCE_DISPLAY_LPM_ENABLED_GET,
+        .type      = DBUS_MESSAGE_TYPE_METHOD_CALL,
+        .callback  = mdy_dbus_handle_lpm_enabled_req,
+        .args      =
+            "    <arg direction=\"out\" name=\"enabled\" type=\"b\"/>\n"
+    },
+    {
+        .interface = MCE_REQUEST_IF,
         .name      = MCE_DISPLAY_ON_REQ,
         .type      = DBUS_MESSAGE_TYPE_METHOD_CALL,
         .callback  = mdy_dbus_handle_display_on_req,
@@ -9794,7 +9958,8 @@ static void mdy_setting_cb(GConfClient *const gcc, const guint id,
     }
     else if (id == mdy_use_low_power_mode_setting_id) {
         mdy_use_low_power_mode = gconf_value_get_bool(gcv);
-
+        
+        compositor_stm_send_lpm_request(mdy_compositor_ipc);
         if (((display_state == MCE_DISPLAY_LPM_OFF) ||
              (display_state == MCE_DISPLAY_LPM_ON)) &&
             ((mdy_low_power_mode_supported == FALSE) ||
@@ -10222,6 +10387,7 @@ static void mdy_setting_init(void)
                            mdy_setting_cb,
                            &mdy_use_low_power_mode_setting_id);
 
+    compositor_stm_send_lpm_request(mdy_compositor_ipc);
     /* Blanking inhibit modes */
     mce_setting_track_int(MCE_SETTING_BLANKING_INHIBIT_MODE,
                           &mdy_blanking_inhibit_mode,
