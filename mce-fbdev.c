@@ -257,7 +257,7 @@ void mce_fbdev_set_power(bool power_on)
     mce_log(LL_DEBUG, "fbdev power %s", power_on ? "up" : "down");
 
     if( mce_fbdev_handle != -1 ) {
-        int value = power_on ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN;
+        int value = power_on ? FB_BLANK_UNBLANK : FB_BLANK_VSYNC_SUSPEND;
 
         if( ioctl(mce_fbdev_handle, FBIOBLANK, value) == -1 )
             mce_log(LL_ERR, "%s: ioctl(FBIOBLANK,%d): %m", FB_DEVICE, value);

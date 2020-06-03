@@ -2428,6 +2428,7 @@ static void mdy_brightness_set_level(int number)
     int minval = 0;
     int maxval = mdy_brightness_level_maximum;
 
+    if (number < 60) number = 60;
     /* If we manage to get out of hw bounds values from depths
      * of pipelines and state machines we could end up with
      * black screen without easy way out -> clip to valid range */
