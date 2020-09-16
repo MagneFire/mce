@@ -31,6 +31,7 @@
 #include "mce-dbus.h"
 #include "libwakelock.h"
 #include "evdev.h"
+#include "mce-setting.h"
 
 #include <linux/input.h>
 
