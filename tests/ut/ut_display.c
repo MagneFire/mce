@@ -821,6 +821,11 @@ void, mce_sensorfw_orient_set_notify, (void (*cb)(int state)))
 	(void)cb;
 }
 
+EXTERN_STUB (
+void, mce_sensorfw_wrist_enable, (void))
+{
+}
+
 /*
  * tklock.c stubs {{{1
  */

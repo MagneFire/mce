@@ -241,6 +241,7 @@ extern datapipe_t proximity_sensor_actual_pipe;
 extern datapipe_t proximity_sensor_effective_pipe;
 extern datapipe_t proximity_sensor_required_pipe;
 extern datapipe_t proximity_blanked_pipe;
+extern datapipe_t wristgesture_sensor_pipe;
 extern datapipe_t light_sensor_actual_pipe;
 extern datapipe_t light_sensor_filtered_pipe;
 extern datapipe_t light_sensor_poll_request_pipe;
