@@ -30,6 +30,8 @@
 #include "mce-log.h"
 #include "mce-dbus.h"
 #include "libwakelock.h"
+#include "evdev.h"
+#include "mce-setting.h"
 
 #include <linux/input.h>
 
@@ -195,6 +197,7 @@ typedef enum
     SFW_SENSOR_ID_PS,
     SFW_SENSOR_ID_ALS,
     SFW_SENSOR_ID_ORIENT,
+    SFW_SENSOR_ID_WRIST,
     SFW_SENSOR_ID_ACCELEROMETER,
     SFW_SENSOR_ID_COMPASS,
     SFW_SENSOR_ID_GYROSCOPE,
@@ -218,6 +221,7 @@ sensor_id_available(sensor_id_t id)
     case SFW_SENSOR_ID_PS:
     case SFW_SENSOR_ID_ALS:
     case SFW_SENSOR_ID_ORIENT:
+    case SFW_SENSOR_ID_WRIST:
         break;
     default:
         available = mce_in_sensortest_mode();
@@ -268,6 +272,7 @@ sensor_id_available(sensor_id_t id)
 #define SFW_SENSOR_INTERFACE_PS             "local.ProximitySensor"
 #define SFW_SENSOR_INTERFACE_ALS            "local.ALSSensor"
 #define SFW_SENSOR_INTERFACE_ORIENT         "local.OrientationSensor"
+#define SFW_SENSOR_INTERFACE_WRIST          "local.WristGestureSensor"
 #define SFW_SENSOR_INTERFACE_ACCELEROMETER  "local.AccelerometerSensor"
 #define SFW_SENSOR_INTERFACE_COMPASS        "local.CompassSensor"
 #define SFW_SENSOR_INTERFACE_GYROSCOPE      "local.GyroscopeSensor"
@@ -311,6 +316,7 @@ sensor_id_available(sensor_id_t id)
 #define SFW_SENSOR_METHOD_READ_PS             "proximity"
 #define SFW_SENSOR_METHOD_READ_ALS            "lux"
 #define SFW_SENSOR_METHOD_READ_ORIENT         "orientation"
+#define SFW_SENSOR_METHOD_READ_WRIST          "wristgesture"
 #define SFW_SENSOR_METHOD_READ_ACCELEROMETER  "xyz"
 #define SFW_SENSOR_METHOD_READ_COMPASS        "value" // or "declinationvalue"?
 #define SFW_SENSOR_METHOD_READ_GYROSCOPE      "value"
@@ -335,6 +341,7 @@ sensor_id_available(sensor_id_t id)
 #define SFW_SENSOR_NAME_PS                "proximitysensor"
 #define SFW_SENSOR_NAME_ALS               "alssensor"
 #define SFW_SENSOR_NAME_ORIENT            "orientationsensor"
+#define SFW_SENSOR_NAME_WRIST             "wristgesturesensor"
 #define SFW_SENSOR_NAME_ACCELEROMETER     "accelerometersensor"
 #define SFW_SENSOR_NAME_COMPASS           "compasssensor"
 #define SFW_SENSOR_NAME_GYROSCOPE         "gyroscopesensor"
@@ -348,6 +355,13 @@ sensor_id_available(sensor_id_t id)
 #define SFW_SENSOR_NAME_TEMPERATURE       "temperaturesensor"
 
 // ----------------------------------------------------------------
+#ifndef MCE_SETTING_DISPLAY_PATH
+#define MCE_SETTING_DISPLAY_PATH                       "/system/osso/dsm/display"
+#endif
+
+#ifndef MCE_SETTING_WRIST_GESTURE_AVAILABLE
+#define MCE_SETTING_WRIST_GESTURE_AVAILABLE            MCE_SETTING_DISPLAY_PATH "/wrist_sensor_available"
+#endif
 
 /* ========================================================================= *
  * FORWARD_DECLARATIONS
@@ -365,6 +379,7 @@ typedef struct sfw_backend_t              sfw_backend_t;
 typedef struct sfw_sample_als_t           sfw_sample_als_t;
 typedef struct sfw_sample_ps_t            sfw_sample_ps_t;
 typedef struct sfw_sample_orient_t        sfw_sample_orient_t;
+typedef struct sfw_sample_wrist_t         sfw_sample_wrist_t;
 typedef struct sfw_sample_accelerometer_t sfw_sample_accelerometer_t;
 typedef struct sfw_sample_compass_t       sfw_sample_compass_t;
 typedef struct sfw_sample_gyroscope_t     sfw_sample_gyroscope_t;
@@ -399,6 +414,9 @@ typedef struct sfw_sample_temperature_t   sfw_sample_temperature_t;
 
 /** Ambient light level [lux] to use when sensor can't be enabled */
 #define SFW_NOTIFY_DEFAULT_ALS 400
+
+#define SFW_NOTIFY_DEFAULT_WRIST false
+#define SFW_NOTIFY_EXCEPTION_WRIST false
 
 /** Orientation state to use when sensor can't be enabled */
 #define SFW_NOTIFY_DEFAULT_ORIENT MCE_ORIENTATION_UNDEFINED
@@ -478,6 +496,16 @@ struct sfw_sample_orient_t
 };
 
 static const char *sfw_sample_orient_repr(const sfw_sample_orient_t *self);
+
+/** Wrist gesture data block as sensord sends them */
+struct sfw_sample_wrist_t
+{
+    /* microseconds, monotonic */
+    uint64_t wrist_timestamp;
+
+    /* wrist tilted [bool] */
+    uint8_t  wrist_tilted;
+};
 
 typedef enum sfw_lid_type_t
 {
@@ -724,6 +752,7 @@ static bool sfw_backend_parse_data              (DBusMessageIter *data, int arg_
 static bool sfw_backend_als_value_cb            (sfw_plugin_t *plugin, DBusMessageIter *data);
 static bool sfw_backend_ps_value_cb             (sfw_plugin_t *plugin, DBusMessageIter *data);
 static bool sfw_backend_orient_value_cb         (sfw_plugin_t *plugin, DBusMessageIter *data);
+static bool sfw_backend_wrist_value_cb          (sfw_plugin_t *plugin, DBusMessageIter *data);
 static bool sfw_backend_accelerometer_value_cb  (sfw_plugin_t *plugin, DBusMessageIter *data);
 static bool sfw_backend_compass_value_cb        (sfw_plugin_t *plugin, DBusMessageIter *data);
 static bool sfw_backend_gyroscope_value_cb      (sfw_plugin_t *plugin, DBusMessageIter *data);
@@ -739,6 +768,7 @@ static bool sfw_backend_temperature_value_cb    (sfw_plugin_t *plugin, DBusMessa
 static void sfw_backend_als_sample_cb           (sfw_plugin_t *plugin, sfw_notify_t type, const void *sample);
 static void sfw_backend_ps_sample_cb            (sfw_plugin_t *plugin, sfw_notify_t type, const void *sample);
 static void sfw_backend_orient_sample_cb        (sfw_plugin_t *plugin, sfw_notify_t type, const void *sample);
+static void sfw_backend_wrist_sample_cb         (sfw_plugin_t *plugin, sfw_notify_t type, const void *sample);
 static void sfw_backend_accelerometer_sample_cb (sfw_plugin_t *plugin, sfw_notify_t type, const void *sample);
 static void sfw_backend_compass_sample_cb       (sfw_plugin_t *plugin, sfw_notify_t type, const void *sample);
 static void sfw_backend_gyroscope_sample_cb     (sfw_plugin_t *plugin, sfw_notify_t type, const void *sample);
@@ -1209,6 +1239,8 @@ static void              sfw_service_do_query           (sfw_service_t *self);
 static sfw_plugin_t     *sfw_service_plugin             (const sfw_service_t *self, sensor_id_t id);
 static void              sfw_service_set_sensor         (const sfw_service_t *self, sensor_id_t id, bool enable);
 
+static void              sfw_set_wrist_available        (sfw_plugin_t * plugin);
+
 /* ========================================================================= *
  * SENSORFW_EXCEPTION
  * ========================================================================= */
@@ -1245,6 +1277,9 @@ static void (*sfw_notify_als_cb)(int lux) = 0;
 
 /** Orientation change callback used for notifying upper level logic */
 static void (*sfw_notify_orient_cb)(int state) = 0;
+
+/** Wrist gesture change callback used for notifying upper level logic */
+static void (*sfw_notify_wrist_cb)(int state) = 0;
 
 // (exported API defined in "mce-sensorfw.h")
 
@@ -1573,6 +1608,31 @@ sfw_backend_orient_value_cb(sfw_plugin_t *plugin, DBusMessageIter *data)
     const sfw_sample_orient_t sample = {
         .orient_timestamp = tck,
         .orient_state     = val,
+    };
+
+    sfw_plugin_handle_sample(plugin, &sample);
+
+    ack = true;
+EXIT:
+    return ack;
+}
+
+static bool
+sfw_backend_wrist_value_cb(sfw_plugin_t *plugin, DBusMessageIter *data)
+{
+    bool          ack = false;
+    dbus_uint64_t tck  = 0;
+    dbus_uint32_t val  = 0;
+
+    if( !sfw_backend_parse_data(data,
+                                DBUS_TYPE_UINT64, &tck,
+                                DBUS_TYPE_UINT32, &val,
+                                DBUS_TYPE_INVALID) )
+        goto EXIT;
+
+    const sfw_sample_wrist_t sample = {
+        .wrist_timestamp = tck,
+        .wrist_tilted    = (val < 1) ? true : false,
     };
 
     sfw_plugin_handle_sample(plugin, &sample);
@@ -2116,6 +2176,112 @@ sfw_backend_orient_sample_cb(sfw_plugin_t *plugin, sfw_notify_t type, const void
     return;
 }
 
+extern void evin_iomon_generate_activity (struct input_event *ev, bool cooked, bool raw);
+
+/** Callback for handling wrist events from sensord */
+static void
+sfw_backend_wrist_sample_cb(sfw_plugin_t *plugin, sfw_notify_t type, const void *sampledata)
+{
+    static const sfw_sample_wrist_t default_value = {
+        .wrist_tilted = SFW_NOTIFY_DEFAULT_WRIST,
+    };
+
+    static sfw_sample_wrist_t cached_value = {
+        .wrist_tilted = SFW_NOTIFY_DEFAULT_WRIST,
+    };
+
+    static bool     tracking_active = false;
+
+    struct input_event *ev;
+
+    (void)plugin;
+    const sfw_sample_wrist_t *sample = sampledata;
+
+    if( sample ) {
+        mce_log(LL_DEBUG, "WRIST: UPDATE %s %s",
+                sfw_notify_name(type),
+                sample ? "tiled" : "untiled");
+    }
+
+    switch( type ) {
+    default:
+    case NOTIFY_REPEAT:
+        break;
+
+    case NOTIFY_FORGET:
+    case NOTIFY_RESET:
+        tracking_active = false;
+        cached_value = default_value;
+        break;
+
+    case NOTIFY_RESTORE:
+        tracking_active = true;
+        break;
+
+    case NOTIFY_EVDEV:
+    case NOTIFY_SENSORD:
+        sfw_set_wrist_available(plugin);
+        cached_value = *sample;
+        break;
+    }
+
+    /* Default value is used unless we are in fully working state */
+    sample = tracking_active ? &cached_value : &default_value ;
+
+    if( sfw_notify_wrist_cb ) {
+        mce_log(LL_DEBUG, "WRIST: NOTIFY %s %s",
+                sfw_notify_name(type),
+                sample ? "tiled" : "untiled");
+        sfw_notify_wrist_cb(sample->wrist_tilted);
+    }
+
+    ev = malloc(sizeof(struct input_event));
+
+    mce_log(LL_DEVEL, "tilt-to-wake gesture from wrist gesture");
+
+    ev->type  = EV_MSC;
+    ev->code  = MSC_GESTURE;
+    ev->value = GESTURE_TILT_TO_WAKE;
+ 
+    evin_iomon_generate_activity(ev, true, true);
+
+    submode_t submode = mce_get_submode_int32();
+
+    /* If the event eater is active, don't send anything */
+    if( submode & MCE_SUBMODE_EVEATER )
+        goto EXIT;
+
+    /* Gesture events count as actual non-synthetized
+     * user activity. */
+    evin_iomon_generate_activity(ev, false, true);
+
+    /* But otherwise are handled in powerkey.c. */
+    datapipe_exec_full(&keypress_event_pipe, &ev);
+EXIT:
+    return;
+}
+
+/** Set availability of wrist tilt sensor based on connection state.
+ */
+static void
+sfw_set_wrist_available(sfw_plugin_t *plugin)
+{
+    mce_log(LL_DEBUG, "WRIST: sfw_set_wrist_available: %d", plugin->plg_session->ses_state);
+    switch(plugin->plg_session->ses_state) {
+        case SESSION_INITIAL:
+        case SESSION_IDLE:
+        case SESSION_REQUESTING:
+        case SESSION_INVALID:
+            mce_setting_set_int(MCE_SETTING_WRIST_GESTURE_AVAILABLE, 0);
+            break;
+        case SESSION_ACTIVE:
+            /* Only when a session is active we know that the sensor can be enabled. */
+            mce_setting_set_int(MCE_SETTING_WRIST_GESTURE_AVAILABLE, 1);
+        case SESSION_ERROR:
+            break;
+    }
+}
+
 /** Callback for handling accelerometer events from sensord */
 static void
 sfw_backend_accelerometer_sample_cb(sfw_plugin_t *plugin, sfw_notify_t type, const void *sampledata)
@@ -2607,6 +2773,15 @@ static const sfw_backend_t sfw_backend_lut[SFW_SENSOR_ID_COUNT] =
         .be_value_cb         = sfw_backend_orient_value_cb,
         .be_sample_cb        = sfw_backend_orient_sample_cb,
         .be_value_method     = SFW_SENSOR_METHOD_READ_ORIENT,
+    },
+    [SFW_SENSOR_ID_WRIST] = {
+        .be_sensor_name      = SFW_SENSOR_NAME_WRIST,
+        .be_sensor_object    = 0,
+        .be_sensor_interface = SFW_SENSOR_INTERFACE_WRIST,
+        .be_sample_size      = sizeof(sfw_sample_wrist_t),
+        .be_value_cb         = sfw_backend_wrist_value_cb,
+        .be_sample_cb        = sfw_backend_wrist_sample_cb,
+        .be_value_method     = SFW_SENSOR_METHOD_READ_WRIST,
     },
     [SFW_SENSOR_ID_ACCELEROMETER] = {
         .be_sensor_name      = SFW_SENSOR_NAME_ACCELEROMETER,
@@ -5179,6 +5354,35 @@ void
 mce_sensorfw_orient_disable(void)
 {
     sfw_service_set_sensor(sfw_service, SFW_SENSOR_ID_ORIENT, false);
+}
+
+// ----------------------------------------------------------------
+
+/** Set Wrist notification callback
+ *
+ * @param cb function to call when Orientation events are received
+ */
+void
+mce_sensorfw_wrist_set_notify(void (*cb)(int state))
+{
+    sfw_plugin_t *plugin = sfw_service_plugin(sfw_service, SFW_SENSOR_ID_WRIST);
+    sfw_plugin_repeat_value(plugin);
+}
+
+/** Try to enable Wrist input
+ */
+void
+mce_sensorfw_wrist_enable(void)
+{
+    sfw_service_set_sensor(sfw_service, SFW_SENSOR_ID_WRIST, true);
+}
+
+/** Try to disable Wrist input
+ */
+void
+mce_sensorfw_wrist_disable(void)
+{
+    sfw_service_set_sensor(sfw_service, SFW_SENSOR_ID_WRIST, false);
 }
 
 // ----------------------------------------------------------------

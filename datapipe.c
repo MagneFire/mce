@@ -688,6 +688,9 @@ datapipe_t proximity_sensor_required_pipe       = DATAPIPE_INIT(proximity_sensor
 /** proximity blanking; read only */
 datapipe_t proximity_blanked_pipe               = DATAPIPE_INIT(proximity_blanked, boolean, false, 0, DATAPIPE_FILTERING_DENIED, DATAPIPE_CACHE_DEFAULT);
 
+/** wrist gesture; read only */
+datapipe_t wristgesture_sensor_pipe             = DATAPIPE_INIT(wristgesture_sensor, boolean, false, 0, DATAPIPE_FILTERING_DENIED, DATAPIPE_CACHE_DEFAULT);
+
 /** Ambient light sensor; read only */
 datapipe_t light_sensor_actual_pipe             = DATAPIPE_INIT(light_sensor_actual, int, 400, 0, DATAPIPE_FILTERING_DENIED, DATAPIPE_CACHE_DEFAULT);
 
@@ -1331,6 +1334,7 @@ void mce_datapipe_quit(void)
     datapipe_free(&proximity_sensor_effective_pipe);
     datapipe_free(&proximity_sensor_required_pipe);
     datapipe_free(&proximity_blanked_pipe);
+    datapipe_free(&wristgesture_sensor_pipe);
     datapipe_free(&light_sensor_actual_pipe);
     datapipe_free(&light_sensor_filtered_pipe);
     datapipe_free(&light_sensor_poll_request_pipe);
