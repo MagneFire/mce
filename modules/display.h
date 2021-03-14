@@ -174,16 +174,6 @@
 # define MCE_SETTING_ORIENTATION_CHANGE_IS_ACTIVITY      MCE_SETTING_DISPLAY_PATH "/orientation_change_is_activity"
 # define MCE_DEFAULT_ORIENTATION_CHANGE_IS_ACTIVITY      false
 
-/** Whether MCE is allowed to use wrist gesture sensor */
-# define MCE_SETTING_WRIST_GESTURE_ENABLED              MCE_SETTING_DISPLAY_PATH "/wrist_sensor_enabled"
-# define MCE_DEFAULT_WRIST_GESTURE_ENABLED              true
-
-/** Whether the wrist gesture sensor is available on the hardware */
-# define MCE_SETTING_WRIST_GESTURE_AVAILABLE            MCE_SETTING_DISPLAY_PATH "/wrist_sensor_available"
-# define MCE_DEFAULT_WRIST_GESTURE_AVAILABLE            1
-
-
-
 /* ------------------------------------------------------------------------- *
  * Color profile related settings
  * ------------------------------------------------------------------------- */
@@ -375,7 +365,7 @@
 
 /** Display blanking delay from lpm-on state [s] */
 # define MCE_SETTING_DISPLAY_BLANK_FROM_LPM_ON_TIMEOUT   MCE_SETTING_DISPLAY_PATH "/display_blank_from_lpm_on_timeout"
-# define MCE_DEFAULT_DISPLAY_BLANK_FROM_LPM_ON_TIMEOUT   1
+# define MCE_DEFAULT_DISPLAY_BLANK_FROM_LPM_ON_TIMEOUT   5
 
 /** Display blanking delay from lpm-off state [s]
  *
@@ -384,7 +374,7 @@
  *       will cause transition back to lpm-on state.
  */
 # define MCE_SETTING_DISPLAY_BLANK_FROM_LPM_OFF_TIMEOUT  MCE_SETTING_DISPLAY_PATH "/display_blank_from_lpm_off_timeout"
-# define MCE_DEFAULT_DISPLAY_BLANK_FROM_LPM_OFF_TIMEOUT  1
+# define MCE_DEFAULT_DISPLAY_BLANK_FROM_LPM_OFF_TIMEOUT  5
 
 /** Whether display blanking is forbidden
  *
@@ -502,7 +492,7 @@ typedef enum {
  * to blank the screen after a while.
  */
 # define MCE_SETTING_USE_LOW_POWER_MODE                  MCE_SETTING_DISPLAY_PATH "/use_low_power_mode"
-# define MCE_DEFAULT_USE_LOW_POWER_MODE                  true
+# define MCE_DEFAULT_USE_LOW_POWER_MODE                  false
 
 /* ------------------------------------------------------------------------- *
  * Power Management related settings

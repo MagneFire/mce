@@ -85,7 +85,7 @@ endif
 PKG_CONFIG   ?= pkg-config
 
 # Whether to enable DEVEL release logging
-ENABLE_DEVEL_LOGGING ?= n
+ENABLE_DEVEL_LOGGING ?= y
 
 # Whether to enable support for libhybris plugin
 ENABLE_HYBRIS ?= y
@@ -193,70 +193,70 @@ DBUSCONF              := mce.conf
 # ----------------------------------------------------------------------------
 
 # C Preprocessor
-override CPPFLAGS += -D_GNU_SOURCE
-override CPPFLAGS += -DG_DISABLE_DEPRECATED
-override CPPFLAGS += -DOSSOLOG_COMPILE
-override CPPFLAGS += -DMCE_VAR_DIR=$(VARDIR)
-override CPPFLAGS += -DMCE_RUN_DIR=$(RUNDIR)
-override CPPFLAGS += -DPRG_VERSION=$(VERSION)
+CPPFLAGS += -D_GNU_SOURCE
+CPPFLAGS += -DG_DISABLE_DEPRECATED
+CPPFLAGS += -DOSSOLOG_COMPILE
+CPPFLAGS += -DMCE_VAR_DIR=$(VARDIR)
+CPPFLAGS += -DMCE_RUN_DIR=$(RUNDIR)
+CPPFLAGS += -DPRG_VERSION=$(VERSION)
 
 ifeq ($(strip $(ENABLE_WAKELOCKS)),y)
-override CPPFLAGS += -DENABLE_WAKELOCKS
+CPPFLAGS += -DENABLE_WAKELOCKS
 endif
 
 ifeq ($(strip $(ENABLE_CPU_GOVERNOR)),y)
-override CPPFLAGS += -DENABLE_CPU_GOVERNOR
+CPPFLAGS += -DENABLE_CPU_GOVERNOR
 endif
 
 ifeq ($(ENABLE_HYBRIS),y)
-override CPPFLAGS += -DENABLE_HYBRIS
+CPPFLAGS += -DENABLE_HYBRIS
 endif
 
 ifeq ($(ENABLE_DOUBLETAP_EMULATION),y)
-override CPPFLAGS += -DENABLE_DOUBLETAP_EMULATION
+CPPFLAGS += -DENABLE_DOUBLETAP_EMULATION
 endif
 
 ifeq ($(ENABLE_DEVEL_LOGGING),y)
-override CPPFLAGS += -DENABLE_DEVEL_LOGGING
+CPPFLAGS += -DENABLE_DEVEL_LOGGING
 endif
 
 # C Compiler
-override CFLAGS += -std=c99
+CFLAGS += -std=c99
 
 # Do we really need all of these?
-override CFLAGS += -Wall
-override CFLAGS += -Wextra
-override CFLAGS += -Wpointer-arith
-override CFLAGS += -Wundef
-override CFLAGS += -Wcast-align
-override CFLAGS += -Wshadow
-override CFLAGS += -Wbad-function-cast
-override CFLAGS += -Wwrite-strings
-override CFLAGS += -Wsign-compare
-override CFLAGS += -Waggregate-return
-override CFLAGS += -Wmissing-noreturn
-override CFLAGS += -Wnested-externs
+CFLAGS += -Wall
+CFLAGS += -Wextra
+CFLAGS += -Wpointer-arith
+CFLAGS += -Wundef
+CFLAGS += -Wcast-align
+CFLAGS += -Wshadow
+CFLAGS += -Wbad-function-cast
+CFLAGS += -Wwrite-strings
+CFLAGS += -Wsign-compare
+CFLAGS += -Waggregate-return
+CFLAGS += -Wmissing-noreturn
+CFLAGS += -Wnested-externs
 #CFLAGS += -Wchar-subscripts (-Wall does this)
-override CFLAGS += -Wmissing-prototypes
-override CFLAGS += -Wformat-security
-override CFLAGS += -Wformat=2
-override CFLAGS += -Wformat-nonliteral
-override CFLAGS += -Winit-self
-override CFLAGS += -Wswitch-default
-override CFLAGS += -Wstrict-prototypes
-override CFLAGS += -Wdeclaration-after-statement
-override CFLAGS += -Wold-style-definition
-override CFLAGS += -Wmissing-declarations
-override CFLAGS += -Wmissing-include-dirs
-override CFLAGS += -Wstrict-aliasing=3
-override CFLAGS += -Wunsafe-loop-optimizations
-override CFLAGS += -Winvalid-pch
+CFLAGS += -Wmissing-prototypes
+CFLAGS += -Wformat-security
+CFLAGS += -Wformat=2
+CFLAGS += -Wformat-nonliteral
+CFLAGS += -Winit-self
+CFLAGS += -Wswitch-default
+CFLAGS += -Wstrict-prototypes
+CFLAGS += -Wdeclaration-after-statement
+CFLAGS += -Wold-style-definition
+CFLAGS += -Wmissing-declarations
+CFLAGS += -Wmissing-include-dirs
+CFLAGS += -Wstrict-aliasing=3
+CFLAGS += -Wunsafe-loop-optimizations
+CFLAGS += -Winvalid-pch
 #CFLAGS += -Waddress  (-Wall does this)
-override CFLAGS += -Wvolatile-register-var
-override CFLAGS += -Wmissing-format-attribute
-override CFLAGS += -Wstack-protector
+CFLAGS += -Wvolatile-register-var
+CFLAGS += -Wmissing-format-attribute
+CFLAGS += -Wstack-protector
 #CFLAGS += -Werror (OBS build might have different compiler)
-override CFLAGS += -Wno-declaration-after-statement
+CFLAGS += -Wno-declaration-after-statement
 
 # Linker
 LDLIBS   += -Wl,--as-needed
@@ -273,7 +273,7 @@ MCE_PKG_NAMES += dbus-1
 MCE_PKG_NAMES += dbus-glib-1
 MCE_PKG_NAMES += dsme
 MCE_PKG_NAMES += libiphb
-MCE_PKG_NAMES += libsystemd
+MCE_PKG_NAMES += libsystemd-daemon
 MCE_PKG_NAMES += libngf0
 
 MCE_PKG_CFLAGS := $(shell $(PKG_CONFIG) --cflags $(MCE_PKG_NAMES))
@@ -320,7 +320,7 @@ ifeq ($(strip $(ENABLE_WAKELOCKS)),y)
 MCE_CORE   += libwakelock.c
 endif
 
-mce : override CFLAGS += $(MCE_CFLAGS)
+mce : CFLAGS += $(MCE_CFLAGS)
 mce : LDLIBS += $(MCE_LDLIBS)
 ifeq ($(ENABLE_HYBRIS),y)
 mce : LDLIBS += -ldl
@@ -351,7 +351,7 @@ MODULE_LDLIBS += $(MODULE_PKG_LDLIBS)
 %.pic.o : %.c
 	$(CC) -c -o $@ $< -fPIC $(CPPFLAGS) $(CFLAGS)
 
-$(MODULE_DIR)/%.so : override CFLAGS += $(MODULE_CFLAGS)
+$(MODULE_DIR)/%.so : CFLAGS += $(MODULE_CFLAGS)
 $(MODULE_DIR)/%.so : LDLIBS += $(MODULE_LDLIBS)
 $(MODULE_DIR)/%.so : $(MODULE_DIR)/%.pic.o
 	$(CC) -shared -o $@ $^ $(LDFLAGS) $(LDLIBS)
@@ -370,11 +370,11 @@ TOOLS_PKG_LDLIBS := $(shell $(PKG_CONFIG) --libs   $(TOOLS_PKG_NAMES))
 TOOLS_CFLAGS += $(TOOLS_PKG_CFLAGS)
 TOOLS_LDLIBS += $(TOOLS_PKG_LDLIBS)
 
-$(TOOLDIR)/mcetool : override CFLAGS += $(TOOLS_CFLAGS)
+$(TOOLDIR)/mcetool : CFLAGS += $(TOOLS_CFLAGS)
 $(TOOLDIR)/mcetool : LDLIBS += $(TOOLS_LDLIBS)
 $(TOOLDIR)/mcetool : $(TOOLDIR)/mcetool.o mce-command-line.o
 
-$(TOOLDIR)/evdev_trace : override CFLAGS += $(TOOLS_CFLAGS)
+$(TOOLDIR)/evdev_trace : CFLAGS += $(TOOLS_CFLAGS)
 $(TOOLDIR)/evdev_trace : LDLIBS += $(TOOLS_LDLIBS)
 $(TOOLDIR)/evdev_trace : $(TOOLDIR)/evdev_trace.o evdev.o $(TOOLDIR)/fileusers.o
 
@@ -397,7 +397,7 @@ UTESTS_LDLIBS += $(UTESTS_PKG_LDLIBS)
 UTESTS_CFLAGS += -fdata-sections -ffunction-sections
 UTESTS_LDLIBS += -Wl,--gc-sections
 
-$(UTESTDIR)/% : override CFLAGS += $(UTESTS_CFLAGS)
+$(UTESTDIR)/% : CFLAGS += $(UTESTS_CFLAGS)
 $(UTESTDIR)/% : LDLIBS += $(UTESTS_LDLIBS)
 $(UTESTDIR)/% : LDLIBS += $(foreach fn_sym,$(LINK_STUBS),\
 				    -Wl,--defsym=$(fn_sym)=stub__$(fn_sym))

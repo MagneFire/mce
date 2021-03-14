@@ -3642,8 +3642,7 @@ static void tklock_uiexcept_finish(void)
     default:
         /* If the display was not clearly ON when exception started,
          * turn it OFF after exceptions are over. */
-        // When the notification was handled, and screen is 'turning' off.
-        mce_datapipe_req_display_state(MCE_DISPLAY_LPM_ON);
+        mce_datapipe_req_display_state(MCE_DISPLAY_OFF);
         break;
 
     case MCE_DISPLAY_ON:
